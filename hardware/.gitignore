@@ -1,0 +1,5 @@
+*.bak
+*.bck
+*.kicad_pcb-bak
+*_panel.pro
+*_panel_template.pro
