@@ -53,7 +53,7 @@
 
 /* USER CODE BEGIN Includes */
 #include "ds2480b.h"
-#include "ring_buffer.h"
+#include "usbd_cdc.h"
 
 /* USER CODE END Includes */
 
@@ -66,8 +66,10 @@ DMA_HandleTypeDef hdma_usart2_tx;
 struct ds2480b ds2480b;
 uint32_t led1_tick_count;
 uint32_t led2_tick_count;
-uint8_t usb_in_storage[64];
-struct ring_buffer usb_ring_buffer;
+__IO int cdc_receiver_busy;
+__IO uint32_t cdc_rx_data_length;
+__IO const uint8_t *cdc_rx_buffer;
+extern USBD_HandleTypeDef hUsbDeviceFS;
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE END PV */
@@ -103,8 +105,9 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  cdc_receiver_busy = 0;
+  cdc_rx_data_length = 0;
   ds2480b_reset(&ds2480b);
-  init_ring_buffer(&usb_ring_buffer, usb_in_storage, sizeof(usb_in_storage));
 
   /* USER CODE END Init */
 
@@ -126,35 +129,29 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		if (!ring_buffer_is_empty(&usb_ring_buffer))
-		{
-			int end_pos = usb_ring_buffer.end_pos;
-			if (usb_ring_buffer.start_pos < end_pos)
-			{
-				ds2480b_handle_data(&ds2480b, usb_ring_buffer.storage +
-					usb_ring_buffer.start_pos, end_pos - usb_ring_buffer.start_pos);
-				usb_ring_buffer.start_pos = end_pos;
-			}
-			else
-			{
-				int size = usb_ring_buffer.size - usb_ring_buffer.start_pos;
-				ds2480b_handle_data(&ds2480b, usb_ring_buffer.storage +
-					usb_ring_buffer.start_pos, size);
-				usb_ring_buffer.start_pos = 0;
-			}
-		}
+	  if (!cdc_receiver_busy)
+	  {
+		  if (cdc_rx_data_length != 0)
+			  ds2480b_handle_data(&ds2480b, (const uint8_t*)cdc_rx_buffer, cdc_rx_data_length);
 
-		if (HAL_GPIO_ReadPin(LED1_GPIO_Port, LED1_Pin) == GPIO_PIN_RESET)
-		{
-			if (HAL_GetTick() - led1_tick_count > 100)
-				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
-		}
+		  if (hUsbDeviceFS.pClassData != 0)
+		  {
+			  cdc_receiver_busy = 1;
+			  USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+		  }
+	  }
 
-		if (HAL_GPIO_ReadPin(LED2_GPIO_Port, LED2_Pin) == GPIO_PIN_RESET)
-		{
-			if (HAL_GetTick() - led2_tick_count > 100)
-				HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET);
-		}
+	  if (HAL_GPIO_ReadPin(LED1_GPIO_Port, LED1_Pin) == GPIO_PIN_RESET)
+	  {
+		  if (HAL_GetTick() - led1_tick_count > 100)
+			  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
+	  }
+
+	  if (HAL_GPIO_ReadPin(LED2_GPIO_Port, LED2_Pin) == GPIO_PIN_RESET)
+	  {
+		  if (HAL_GetTick() - led2_tick_count > 100)
+			  HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET);
+	  }
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
@@ -319,9 +316,11 @@ void cdc_break_callback()
 	ds2480b_reset(&ds2480b);
 }
 
-void cdc_data_received_callback(const void *data, uint16_t data_length)
+void cdc_data_received_callback(const uint8_t *data, uint32_t data_length)
 {
-	ring_buffer_write(&usb_ring_buffer, data, data_length);
+	cdc_rx_buffer = data;
+	cdc_rx_data_length = data_length;
+	cdc_receiver_busy = 0;
 }
 
 /* USER CODE END 4 */

@@ -109,6 +109,7 @@ static void set_bit(uint8_t *buffer, int address, int value);
 void ds2480b_reset(struct ds2480b *ds2480b)
 {
 	ds2480b->acc_on = 0;
+	ds2480b->baudrate = 0;
 	ds2480b->mode = DS2480B_MODE_COMMAND;
 }
 
