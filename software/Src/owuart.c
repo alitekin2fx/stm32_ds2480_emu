@@ -1,5 +1,5 @@
 /*
- * ow_uart.c
+ * owuart.c
  *
  *  Created on: Apr 7, 2019
  *      Author: ali-teke
@@ -8,23 +8,23 @@
  */
 
 #include "stm32f0xx_hal.h"
-#include "ow_uart.h"
+#include "owuart.h"
 
 extern uint32_t led1_tick_count;
 extern uint32_t led2_tick_count;
 extern UART_HandleTypeDef huart2;
 
-static void ow_uart_set_baudrate(int baudrate);
+static void owuart_set_baudrate(int baudrate);
 
-static int ow_uart_convert_to_bit(uint8_t data);
-static uint8_t ow_uart_convert_from_bit(int bit_value);
+static int owuart_convert_to_bit(uint8_t data);
+static uint8_t owuart_convert_from_bit(int bit_value);
 
-static uint8_t ow_uart_convert_to_byte(const uint8_t *data);
-static void ow_uart_convert_from_byte(uint8_t byte_value, uint8_t *data);
+static uint8_t owuart_convert_to_byte(const uint8_t *data);
+static void owuart_convert_from_byte(uint8_t byte_value, uint8_t *data);
 
-static int ow_uart_touch_data(uint8_t *tx_data, uint8_t *rx_data, int bit_count);
+static int owuart_touch_data(uint8_t *tx_data, uint8_t *rx_data, int bit_count);
 
-static const uint8_t crc8_table[] =
+static const uint8_t owcrc8_table[] =
 {
 	0, 94, 188, 226, 97, 63, 221, 131, 194, 156, 126, 32, 163, 253, 31, 65,
 	157, 195, 33, 127, 252, 162, 64, 30, 95, 1, 227, 189, 62, 96, 130, 220,
@@ -44,7 +44,7 @@ static const uint8_t crc8_table[] =
 	116, 42, 200, 150, 21, 75, 169, 247, 182, 232, 10, 84, 215, 137, 107, 53
 };
 
-void ow_uart_set_baudrate(int baudrate)
+void owuart_set_baudrate(int baudrate)
 {
 	__HAL_UART_DISABLE(&huart2);
 
@@ -54,36 +54,36 @@ void ow_uart_set_baudrate(int baudrate)
 	__HAL_UART_ENABLE(&huart2);
 }
 
-int ow_uart_convert_to_bit(uint8_t data)
+int owuart_convert_to_bit(uint8_t data)
 {
 	return(data == 0xff);
 }
 
-uint8_t ow_uart_convert_from_bit(int bit_value)
+uint8_t owuart_convert_from_bit(int bit_value)
 {
 	return(bit_value ? 0xff : 0x00);
 }
 
-uint8_t ow_uart_convert_to_byte(const uint8_t *data)
+uint8_t owuart_convert_to_byte(const uint8_t *data)
 {
 	int i;
 	uint8_t byte_value;
 
 	for(i = 0, byte_value = 0; i < 8; i++)
 	{
-		if (ow_uart_convert_to_bit(data[i]))
+		if (owuart_convert_to_bit(data[i]))
 			byte_value |= (1 << i);
 	}
 	return(byte_value);
 }
 
-void ow_uart_convert_from_byte(uint8_t byte_value, uint8_t *data)
+void owuart_convert_from_byte(uint8_t byte_value, uint8_t *data)
 {
 	for(int i = 0; i < 8; i++)
-		data[i] = ow_uart_convert_from_bit(byte_value & (1 << i));
+		data[i] = owuart_convert_from_bit(byte_value & (1 << i));
 }
 
-int ow_uart_touch_data(uint8_t *tx_data, uint8_t *rx_data, int bit_count)
+int owuart_touch_data(uint8_t *tx_data, uint8_t *rx_data, int bit_count)
 {
 	int index;
 
@@ -116,44 +116,50 @@ int ow_uart_touch_data(uint8_t *tx_data, uint8_t *rx_data, int bit_count)
 	return(1);
 }
 
-int ow_uart_touch_reset()
+int owuart_touch_reset()
 {
 	int res;
 	uint8_t tx_data = 0xf0, rx_data;
 
-	ow_uart_set_baudrate(9600);
-	if (!ow_uart_touch_data(&tx_data, &rx_data, 1))
+	owuart_set_baudrate(9600);
+	if (!owuart_touch_data(&tx_data, &rx_data, 1))
 		res = 0;
 	else
 		res = (rx_data == 0xf0) ? 1 : 2;
 
-	ow_uart_set_baudrate(115200);
+	owuart_set_baudrate(115200);
 	return(res);
 }
 
-int ow_uart_touch_bit(int bit_value)
+int owuart_touch_bit(int tx_bit, int *rx_bit)
 {
 	uint8_t tx_data, rx_data;
 
-	tx_data = ow_uart_convert_from_bit(bit_value);
-	if (!ow_uart_touch_data(&tx_data, &rx_data, 1))
+	tx_data = owuart_convert_from_bit(tx_bit);
+	if (!owuart_touch_data(&tx_data, &rx_data, 1))
 		return(0);
 
-	return(ow_uart_convert_to_bit(rx_data));
+	if (rx_bit != 0)
+		*rx_bit = owuart_convert_to_bit(rx_data);
+
+	return(1);
 }
 
-uint8_t ow_uart_touch_byte(uint8_t byte_value)
+int owuart_touch_byte(uint8_t tx_byte, uint8_t *rx_byte)
 {
 	uint8_t tx_data[8], rx_data[8];
 
-	ow_uart_convert_from_byte(byte_value, tx_data);
-	if (!ow_uart_touch_data(tx_data, rx_data, 8))
+	owuart_convert_from_byte(tx_byte, tx_data);
+	if (!owuart_touch_data(tx_data, rx_data, 8))
 		return(0);
 
-	return(ow_uart_convert_to_byte(rx_data));
+	if (rx_byte != 0)
+		*rx_byte = owuart_convert_to_byte(rx_data);
+
+	return(1);
 }
 
-uint8_t ow_uart_search(struct ow_uart_search_param *param)
+int owuart_search(struct owuart_search_param *param)
 {
 	int id_bit, id_bit_number, cmp_id_bit;
 	int last_zero, rom_byte_number, search_result;
@@ -168,27 +174,28 @@ uint8_t ow_uart_search(struct ow_uart_search_param *param)
 	rom_byte_number = 0;
 
 // If the last call was not the last one
-	if (!param->lastDeviceFlag)
+	if (!param->last_device_flag)
 	{
 // 1-Wire reset
-		if (ow_uart_touch_reset() != 2)
+		if (owuart_touch_reset() != 2)
 		{
 // Reset the search
-			param->lastDeviceFlag = 0;
-			param->lastDiscrepancy = 0;
-			param->lastFamilyDiscrepancy = 0;
+			param->last_device_flag = 0;
+			param->last_discrepancy = 0;
+			param->last_family_discrepancy = 0;
 			return(0);
 		}
 
 // Issue the search command
-		ow_uart_touch_byte(0xf0);
+		if (!owuart_touch_byte(0xf0, 0))
+			return(0);
 
 // Loop to do the search
 		do
 		{
 // Read a bit and its complement
-			id_bit = ow_uart_touch_bit(1);
-			cmp_id_bit = ow_uart_touch_bit(1);
+			if (!owuart_touch_bit(1, &id_bit) || !owuart_touch_bit(1, &cmp_id_bit))
+				return(0);
 
 // Check for no devices on 1-wire
 			if ((id_bit == 1) && (cmp_id_bit == 1))
@@ -204,11 +211,11 @@ uint8_t ow_uart_search(struct ow_uart_search_param *param)
 				else
 				{
 // If this discrepancy if before the Last Discrepancy on a previous next then pick the same as last time
-					if (id_bit_number < param->lastDiscrepancy)
+					if (id_bit_number < param->last_discrepancy)
 						search_direction = ((param->rom_no[rom_byte_number] & rom_byte_mask) > 0);
 					else
 // If equal to last pick 1, if not then pick 0
-						search_direction = (id_bit_number == param->lastDiscrepancy);
+						search_direction = (id_bit_number == param->last_discrepancy);
 
 // If 0 was picked then record its position in LastZero
 					if (search_direction == 0)
@@ -217,7 +224,7 @@ uint8_t ow_uart_search(struct ow_uart_search_param *param)
 
 // Check for Last discrepancy in family
 						if (last_zero < 9)
-							param->lastFamilyDiscrepancy = last_zero;
+							param->last_family_discrepancy = last_zero;
 					}
 				}
 
@@ -228,7 +235,8 @@ uint8_t ow_uart_search(struct ow_uart_search_param *param)
 					param->rom_no[rom_byte_number] &= ~rom_byte_mask;
 
 // Serial number search direction write bit
-				ow_uart_touch_bit(search_direction);
+				if (!owuart_touch_bit(search_direction, 0))
+					return(0);
 
 // Increment the byte counter id_bit_number and shift the mask rom_byte_mask
 				id_bit_number++;
@@ -238,7 +246,7 @@ uint8_t ow_uart_search(struct ow_uart_search_param *param)
 				if (rom_byte_mask == 0)
 				{
 // Accumulate the CRC
-					crc8 = crc8_table[crc8 ^ param->rom_no[rom_byte_number]];
+					crc8 = owcrc8_table[crc8 ^ param->rom_no[rom_byte_number]];
 					rom_byte_number++;
 					rom_byte_mask = 1;
 				}
@@ -250,11 +258,11 @@ uint8_t ow_uart_search(struct ow_uart_search_param *param)
 		if (!((id_bit_number < 65) || (crc8 != 0)))
 		{
 // Search successful so set LastDiscrepancy,LastDeviceFlag,search_result
-			param->lastDiscrepancy = last_zero;
+			param->last_discrepancy = last_zero;
 
 // Check for last device
-			if (param->lastDiscrepancy == 0)
-				param->lastDeviceFlag = 1;
+			if (param->last_discrepancy == 0)
+				param->last_device_flag = 1;
 
 			search_result = 1;
 		}
@@ -264,22 +272,22 @@ uint8_t ow_uart_search(struct ow_uart_search_param *param)
 	if (!search_result || !param->rom_no[0])
 	{
 		search_result = 0;
-		param->lastDeviceFlag = 0;
-		param->lastDiscrepancy = 0;
-		param->lastFamilyDiscrepancy = 0;
+		param->last_device_flag = 0;
+		param->last_discrepancy = 0;
+		param->last_family_discrepancy = 0;
 	}
 
 	return(search_result);
 }
 
-void ow_uart_test_search()
+void owuart_test_search()
 {
-	struct ow_uart_search_param param;
+	struct owuart_search_param param;
 
-	param.lastDeviceFlag = 0;
-	param.lastDiscrepancy = 0;
-	param.lastFamilyDiscrepancy = 0;
-	while(ow_uart_search(&param))
+	param.last_device_flag = 0;
+	param.last_discrepancy = 0;
+	param.last_family_discrepancy = 0;
+	while(owuart_search(&param))
 	{
 		printf("%02x%02x%02x%02x%02x%02x%02x%02x\n", param.rom_no[0], param.rom_no[1],
 			param.rom_no[2], param.rom_no[3], param.rom_no[4], param.rom_no[5],

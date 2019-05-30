@@ -8,7 +8,7 @@
 #include "main.h"
 #include "stm32f0xx_hal.h"
 #include "usbd_cdc_if.h"
-#include "ow_uart.h"
+#include "owuart.h"
 #include "ds2480b.h"
 
 // Mode Commands
@@ -168,9 +168,12 @@ void ds2480b_handle_check(struct ds2480b *ds2480b, uint8_t data)
 {
 	if (data == ds2480b->check_value)
 	{
+		uint8_t rx_byte;
+
 /* If both bytes are the same, the byte is sent once to the 1-Wire bus and the
  * device returns to the Data Mode */
-		ds2480b_transmit_byte(ds2480b, ow_uart_touch_byte(data));
+		owuart_touch_byte(data, &rx_byte);
+		ds2480b_transmit_byte(ds2480b, rx_byte);
 		ds2480b->mode = DS2480B_MODE_DATA;
 	}
 	else
@@ -205,7 +208,10 @@ void ds2480b_handle_data_internal(struct ds2480b *ds2480b, uint8_t data)
 		}
 		else
 		{
-			ds2480b_transmit_byte(ds2480b, ow_uart_touch_byte(data));
+			uint8_t rx_byte;
+
+			owuart_touch_byte(data, &rx_byte);
+			ds2480b_transmit_byte(ds2480b, rx_byte);
 		}
 	}
 }
@@ -213,12 +219,14 @@ void ds2480b_handle_data_internal(struct ds2480b *ds2480b, uint8_t data)
 void ds2480b_cmdfunc_singlebit(struct ds2480b *ds2480b, uint8_t write_value,
 	uint8_t speed, uint8_t spup)
 {
-	int bit_value = ow_uart_touch_bit((write_value == SINGLEBITWRITE_ONE) ? 1 : 0);
-	ds2480b_transmit_byte(ds2480b, 0x80 | write_value | speed | (bit_value ?
-			SINGLEBITRESP_ONE : SINGLEBITRESP_ZERO));
+	int rx_bit;
+
+	owuart_touch_bit((write_value == SINGLEBITWRITE_ONE) ? 1 : 0, &rx_bit);
+	ds2480b_transmit_byte(ds2480b, 0x80 | write_value | speed |
+		(rx_bit ? SINGLEBITRESP_ONE : SINGLEBITRESP_ZERO));
 
 	if (spup == SINGLEBITSPUP_ON)
-		ds2480b_transmit_byte(ds2480b, bit_value ? 0xef : 0xec);
+		ds2480b_transmit_byte(ds2480b, rx_bit ? 0xef : 0xec);
 }
 
 void ds2480b_cmdfunc_searchctrl(struct ds2480b *ds2480b, uint8_t on_off, uint8_t speed)
@@ -232,7 +240,7 @@ void ds2480b_cmdfunc_reset(struct ds2480b *ds2480b, uint8_t speed)
 	uint8_t resp_data;
 
 	HAL_GPIO_WritePin(OW_SYNC_GPIO_Port, OW_SYNC_Pin, GPIO_PIN_SET);
-	int res = ow_uart_touch_reset();
+	int res = owuart_touch_reset();
 	HAL_GPIO_WritePin(OW_SYNC_GPIO_Port, OW_SYNC_Pin, GPIO_PIN_RESET);
 
 	if (res == 2)
@@ -346,8 +354,8 @@ void ds2480b_search(struct ds2480b *ds2480b)
 		 * b2: for the third time slot (Write Data) */
 
 		/* Read a bit and its complement (b0 and b1) */
-		id_bit = ow_uart_touch_bit(1);
-		cmp_id_bit = ow_uart_touch_bit(1);
+		owuart_touch_bit(1, &id_bit);
+		owuart_touch_bit(1, &cmp_id_bit);
 
 		/* Check if there is no response */
 		if (id_bit == 1 && cmp_id_bit == 1)
@@ -370,7 +378,7 @@ void ds2480b_search(struct ds2480b *ds2480b)
 		 * b2 = rn if conflict (as chosen by the host)
 		 * b2 = b0 if no conflict (there is no alternative)
 		 * b2 = 1 if error (there is no response) */
-		ow_uart_touch_bit(chosen_path);
+		owuart_touch_bit(chosen_path, 0);
 
 		set_bit(search_result, (i * 2) + 0, discrepancy);
 		set_bit(search_result, (i * 2) + 1, chosen_path);
