@@ -7,7 +7,7 @@
  *  https://www.maximintegrated.com/en/app-notes/index.mvp/id/214
  */
 
-#include "stm32f0xx_hal.h"
+#include "main.h"
 #include "owuart.h"
 
 extern uint32_t led1_tick_count;
@@ -86,19 +86,24 @@ void owuart_convert_from_byte(uint8_t byte_value, uint8_t *data)
 int owuart_touch_data(uint8_t *tx_data, uint8_t *rx_data, int bit_count)
 {
 	int index;
+	uint32_t tick_count;
 
 	if (HAL_UART_Receive_DMA(&huart2, rx_data, bit_count) != HAL_OK)
-		_Error_Handler(__FILE__, __LINE__);
+		Error_Handler();
 
 	if (HAL_UART_Transmit_DMA(&huart2, tx_data, bit_count) != HAL_OK)
-		_Error_Handler(__FILE__, __LINE__);
+		Error_Handler();
 
 	/* Turn on LED1 */
 	HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
-	led1_tick_count = HAL_GetTick();
+	led1_tick_count = tick_count = HAL_GetTick();
 
 	while(huart2.gState != HAL_UART_STATE_READY);
-	while(huart2.RxState != HAL_UART_STATE_READY);
+	while(huart2.RxState != HAL_UART_STATE_READY)
+	{
+		if (HAL_GetTick() - tick_count > 10)
+			return(0);
+	}
 
 	/* We can't receive any character when OW pin is grounded */
 	if (__HAL_DMA_GET_COUNTER(huart2.hdmarx) != 0)
