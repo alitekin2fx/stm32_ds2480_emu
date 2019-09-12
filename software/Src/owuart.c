@@ -102,12 +102,18 @@ int owuart_touch_data(uint8_t *tx_data, uint8_t *rx_data, int bit_count)
 	while(huart2.RxState != HAL_UART_STATE_READY)
 	{
 		if (HAL_GetTick() - tick_count > 10)
+		{
+			HAL_UART_AbortReceive(&huart2);
 			return(0);
+		}
 	}
 
 	/* We can't receive any character when OW pin is grounded */
 	if (__HAL_DMA_GET_COUNTER(huart2.hdmarx) != 0)
+	{
+		HAL_UART_AbortReceive(&huart2);
 		return(0);
+	}
 
 	for(index = 0; index < bit_count; index++)
 	{
