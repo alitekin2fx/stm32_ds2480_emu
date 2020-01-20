@@ -46,12 +46,8 @@ static const uint8_t owcrc8_table[] =
 
 void owuart_set_baudrate(int baudrate)
 {
-	__HAL_UART_DISABLE(&huart2);
-
 	huart2.Init.BaudRate = baudrate;
 	HAL_UART_Init(&huart2);
-
-	__HAL_UART_ENABLE(&huart2);
 }
 
 int owuart_convert_to_bit(uint8_t data)
@@ -88,15 +84,15 @@ int owuart_touch_data(uint8_t *tx_data, uint8_t *rx_data, int bit_count)
 	int index;
 	uint32_t tick_count;
 
+	/* Turn on LED1 */
+	HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+	led1_tick_count = tick_count = HAL_GetTick();
+
 	if (HAL_UART_Receive_DMA(&huart2, rx_data, bit_count) != HAL_OK)
 		Error_Handler();
 
 	if (HAL_UART_Transmit_DMA(&huart2, tx_data, bit_count) != HAL_OK)
 		Error_Handler();
-
-	/* Turn on LED1 */
-	HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
-	led1_tick_count = tick_count = HAL_GetTick();
 
 	while(huart2.gState != HAL_UART_STATE_READY);
 	while(huart2.RxState != HAL_UART_STATE_READY)

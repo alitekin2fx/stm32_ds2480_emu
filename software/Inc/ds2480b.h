@@ -20,8 +20,6 @@ struct ds2480b
 	uint8_t check_value;
 	int active_pullup_time;
 	enum DS2480B_MODE mode;
-	int search_data_count;
-	uint8_t search_data[16];
 };
 
 void ds2480b_reset(struct ds2480b *ds2480b);

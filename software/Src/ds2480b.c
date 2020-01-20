@@ -102,9 +102,9 @@ static void ds2480b_handle_write_config(struct ds2480b *ds2480b, uint8_t code, i
 static void ds2480b_handle_read_config(struct ds2480b *ds2480b, uint8_t code);
 static int ds2480b_transmit_byte(struct ds2480b *ds2480b, uint8_t value);
 static int ds2480b_transmit_data(struct ds2480b *ds2480b, const uint8_t *data, int data_length);
-static void ds2480b_search(struct ds2480b *ds2480b);
-static int get_bit(const uint8_t *buffer, int address);
-static void set_bit(uint8_t *buffer, int address, int value);
+static void ds2480b_search(struct ds2480b *ds2480b, uint8_t search_data);
+static int get_bit(uint8_t data, int bit_number);
+static void set_bit(uint8_t *data, int bit_number, int value);
 
 void ds2480b_reset(struct ds2480b *ds2480b)
 {
@@ -196,15 +196,7 @@ void ds2480b_handle_data_internal(struct ds2480b *ds2480b, uint8_t data)
 	{
 		if (ds2480b->acc_on)
 		{
-			if (ds2480b->search_data_count < 16)
-			{
-				ds2480b->search_data[ds2480b->search_data_count++] = data;
-				if (ds2480b->search_data_count == 16)
-				{
-					ds2480b_search(ds2480b);
-					ds2480b->search_data_count = 0;
-				}
-			}
+			ds2480b_search(ds2480b, data);
 		}
 		else
 		{
@@ -232,7 +224,6 @@ void ds2480b_cmdfunc_singlebit(struct ds2480b *ds2480b, uint8_t write_value,
 void ds2480b_cmdfunc_searchctrl(struct ds2480b *ds2480b, uint8_t on_off, uint8_t speed)
 {
 	ds2480b->acc_on = on_off;
-	ds2480b->search_data_count = 0;
 }
 
 void ds2480b_cmdfunc_reset(struct ds2480b *ds2480b, uint8_t speed)
@@ -338,11 +329,11 @@ int ds2480b_transmit_data(struct ds2480b *ds2480b, const uint8_t *data, int data
 	return(1);
 }
 
-void ds2480b_search(struct ds2480b *ds2480b)
+void ds2480b_search(struct ds2480b *ds2480b, uint8_t search_data)
 {
-	uint8_t search_result[16];
+	uint8_t search_result;
 
-	for(int i = 0; i < 64; i++)
+	for(int i = 0; i < 4; i++)
 	{
 		int id_bit, cmp_id_bit;
 		int discrepancy, chosen_path;
@@ -370,7 +361,7 @@ void ds2480b_search(struct ds2480b *ds2480b)
 		}
 		else
 		{
-			chosen_path = get_bit(ds2480b->search_data, (i * 2) + 1);
+			chosen_path = get_bit(search_data, (i * 2) + 1);
 			discrepancy = 1;
 		}
 
@@ -380,32 +371,22 @@ void ds2480b_search(struct ds2480b *ds2480b)
 		 * b2 = 1 if error (there is no response) */
 		owuart_touch_bit(chosen_path, 0);
 
-		set_bit(search_result, (i * 2) + 0, discrepancy);
-		set_bit(search_result, (i * 2) + 1, chosen_path);
+		set_bit(&search_result, (i * 2) + 0, discrepancy);
+		set_bit(&search_result, (i * 2) + 1, chosen_path);
 	}
 
-	ds2480b_transmit_data(ds2480b, search_result, sizeof(search_result));
+	ds2480b_transmit_byte(ds2480b, search_result);
 }
 
-int get_bit(const uint8_t *buffer, int address)
+int get_bit(uint8_t data, int bit_number)
 {
-	int byte_number, bit_number;
-
-	byte_number = (address / 8);
-	bit_number = address - (byte_number * 8);
-
-	return((buffer[byte_number] & (1 << bit_number)) != 0);
+	return((data & (1 << bit_number)) != 0);
 }
 
-void set_bit(uint8_t *buffer, int address, int value)
+void set_bit(uint8_t *data, int bit_number, int value)
 {
-	int byte_number, bit_number;
-
-	byte_number = (address / 8);
-	bit_number = address - (byte_number * 8);
-
 	if (value)
-		buffer[byte_number] |= (1 << bit_number);
+		*data |= (1 << bit_number);
 	else
-		buffer[byte_number] &= ~(1 << bit_number);
+		*data &= ~(1 << bit_number);
 }
