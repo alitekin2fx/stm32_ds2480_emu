@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name stm32_ds2480_emu-rescue)(type Legacy)(uri ${KIPRJMOD}/stm32_ds2480_emu-rescue.lib)(options "")(descr ""))
+)
