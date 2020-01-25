@@ -23,3 +23,9 @@ USB to 1-Wire line driver with STM32
 6) Press "Leave DFU mode" button.
 8) Remove solder from "DFU" jumper
 
+# Licenses
+- Software license: MIT
+- Hardware license: CERN v1.2
+
+[![OSHW-TR000001](oshwa_tr000001.svg)](https://certification.oshwa.org/tr000001.html)
+
