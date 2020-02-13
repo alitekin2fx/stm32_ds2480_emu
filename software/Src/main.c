@@ -119,7 +119,10 @@ int main(void)
 	  if (!cdc_receiver_busy)
 	  {
 		  if (cdc_rx_data_length != 0)
+		  {
 			  ds2480b_handle_data(&ds2480b, (const uint8_t*)cdc_rx_buffer, cdc_rx_data_length);
+			  cdc_rx_data_length = 0;
+		  }
 
 		  if (hUsbDeviceFS.pClassData != 0)
 		  {
