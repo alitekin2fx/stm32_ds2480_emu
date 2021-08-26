@@ -88,13 +88,24 @@ int owuart_touch_data(uint8_t *tx_data, uint8_t *rx_data, int bit_count)
 	HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
 	led1_tick_count = tick_count = HAL_GetTick();
 
+	/* Start receiving in DMA mode */
 	if (HAL_UART_Receive_DMA(&huart2, rx_data, bit_count) != HAL_OK)
 		Error_Handler();
 
+	/* The HAL_UART_Receive_DMA function also enables the USART_CR1_PEIE and
+	 * USART_CR3_EIE interrupts, but this causes DMA to stop when an error occures,
+	 * so we need to disable these interrupts as well */
+	__HAL_UART_DISABLE_IT(&huart2, UART_IT_PE);
+	__HAL_UART_DISABLE_IT(&huart2, UART_IT_ERR);
+
+	/* Start sending in DMA mode */
 	if (HAL_UART_Transmit_DMA(&huart2, tx_data, bit_count) != HAL_OK)
 		Error_Handler();
 
+	/* Wait for sending to complete */
 	while(huart2.gState != HAL_UART_STATE_READY);
+
+	/* Wait for receive to complete with timeout */
 	while(huart2.RxState != HAL_UART_STATE_READY)
 	{
 		if (HAL_GetTick() - tick_count > 10)
@@ -104,7 +115,8 @@ int owuart_touch_data(uint8_t *tx_data, uint8_t *rx_data, int bit_count)
 		}
 	}
 
-	/* We can't receive any character when OW pin is grounded */
+	/* DMA transfer looks like also complete when an error occurred in RX.
+	 * So we will also check if all data are received */
 	if (__HAL_DMA_GET_COUNTER(huart2.hdmarx) != 0)
 	{
 		HAL_UART_AbortReceive(&huart2);
